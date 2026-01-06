@@ -4,6 +4,7 @@ import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
+from aiohttp import web
 from dotenv import load_dotenv
 
 from db.base import init_db
@@ -11,6 +12,20 @@ from handlers import start, tracking, progress
 from utils.middlewares import LoggingMiddleware
 
 load_dotenv()
+
+
+async def keep_alive():
+    app = web.Application()
+    app.router.add_get('/', lambda r: web.Response(text="I'm alive"))
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    port = int(os.getenv("PORT", 8080))
+    print(f"Запускаю keep-alive сервер на порту {port}")
+
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
 
 
 async def setup_bot_commands(bot: Bot):
@@ -41,7 +56,7 @@ async def main():
     )
 
     await setup_bot_commands(bot)
-
+    asyncio.create_task(keep_alive())
     print("Бот запущен!")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
