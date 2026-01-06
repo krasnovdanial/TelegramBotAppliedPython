@@ -1,0 +1,15 @@
+.env
+db.sqlite3
+fitness.db
+ИИ_Пр_2.ipynb
+.venv/
+venv/
+env/
+
+__pycache__/
+*.py[cod]
+
+.idea/
+.cadence/
+
+*.log
