@@ -45,7 +45,7 @@ async def process_weight(message: types.Message, state: FSMContext):
         await message.answer("Введите ваш рост (в см):")
         await state.set_state(ProfileSetup.height)
     except ValueError:
-        await message.answer("Введите число.")
+        await message.answer("Введите число (ваш рост (в см)).")
 
 
 @router.message(ProfileSetup.height)
@@ -55,17 +55,23 @@ async def process_height(message: types.Message, state: FSMContext):
         await message.answer("Введите ваш возраст:")
         await state.set_state(ProfileSetup.age)
     except ValueError:
-        await message.answer("Введите число.")
+        await message.answer("Введите число (ваш возраст).")
 
 
 @router.message(ProfileSetup.age)
 async def process_age(message: types.Message, state: FSMContext):
     try:
-        await state.update_data(age=int(message.text))
-        await message.answer("Сколько минут активности в день?")
+        age = int(message.text)
+        if age < 10 or age > 100:
+            await message.answer("Введите возраст от 10 до 100 лет.")
+            return
+
+        await state.update_data(age=age)
+        await message.answer("Сколько минут в день вы активны? Например: 30")
         await state.set_state(ProfileSetup.activity)
+
     except ValueError:
-        await message.answer("Введите число.")
+        await message.answer("Пожалуйста, введите возраст числом.")
 
 
 @router.message(ProfileSetup.activity)
@@ -75,12 +81,21 @@ async def process_activity(message: types.Message, state: FSMContext):
         await message.answer("В каком городе вы находитесь?")
         await state.set_state(ProfileSetup.city)
     except ValueError:
-        await message.answer("Введите число.")
+        await message.answer("Введите название города.")
 
 
 @router.message(ProfileSetup.city)
 async def process_city(message: types.Message, state: FSMContext):
     city = message.text.strip().title()
+    checking_msg = await message.answer(f"Проверяю погоду в городе {city}...")
+    temp = await get_weather_temp(city)
+
+    if temp is None:
+        await message.answer(
+            "Не удалось найти такой город. Проверьте название и попробуйте еще раз.\n"
+        )
+        return
+
     data = await state.get_data()
     name = data.get('name', 'Пользователь')
 
@@ -88,9 +103,6 @@ async def process_city(message: types.Message, state: FSMContext):
     height = data['height']
     age = data['age']
     act = data['activity']
-
-    checking_msg = await message.answer(f"Проверяю погоду в городе {city}...")
-    temp = await get_weather_temp(city)
 
     water_goal = weight * 30 + (act // 30) * 500
 
@@ -117,6 +129,7 @@ async def process_city(message: types.Message, state: FSMContext):
         f"Ваш профиль настроен, {name}!\n"
         f"{weather_info}\n"
         f"Цель по воде: {int(water_goal)} мл\n"
-        f"Цель по калориям: {int(calorie_goal)} ккал"
+        f"Цель по калориям: {int(calorie_goal)} ккал\n"
+        f"Используйте меню или команды для записи"
     )
     await state.clear()
