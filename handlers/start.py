@@ -14,6 +14,12 @@ async def cmd_start(message: types.Message):
     await message.answer("Привет! Я помогу вам следить за здоровьем.\nНачни с настройки своего профиля: /set_profile")
 
 
+@router.message(Command("cancel"))
+async def cmd_cancel(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("Действие отменено. Возвращаю вас в главное меню.")
+
+
 @router.message(Command("set_profile"))
 async def cmd_set_profile(message: types.Message, state: FSMContext):
     await state.clear()
@@ -23,6 +29,9 @@ async def cmd_set_profile(message: types.Message, state: FSMContext):
 
 @router.message(ProfileSetup.name)
 async def process_name(message: types.Message, state: FSMContext):
+    if message.text.startswith('/'):
+        await message.answer("Похоже, вы ввели команду. Пожалуйста, напишите ваше имя текстом.")
+        return
     await state.update_data(name=message.text)
 
     await message.answer(f"Приятно познакомиться, {message.text}! Введите ваш вес (в кг):")

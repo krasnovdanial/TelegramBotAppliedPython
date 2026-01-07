@@ -1,10 +1,12 @@
 import os
 
 import aiohttp
+from deep_translator import GoogleTranslator
 from dotenv import load_dotenv
 
 load_dotenv()
 WEATHER_KEY = os.getenv('WEATHER_KEY')
+NINJA_KEY = os.getenv('CALORIE_NINJA')
 
 
 async def get_weather_temp(city: str):
@@ -26,17 +28,42 @@ async def get_weather_temp(city: str):
             return None
 
 
-async def get_food_info(product_name: str):
-    url = f"https://world.openfoodfacts.org/cgi/search.pl?action=process&search_terms={product_name}&json=1&page_size=5"
+async def get_food_info(product_input: str):
+    if not NINJA_KEY:
+        print("Ошибка: Нет NINJA_KEY")
+        return None, None, None
+
+    try:
+        translator = GoogleTranslator(source='auto', target='en')
+        translated_query = translator.translate(product_input)
+    except Exception:
+        translated_query = product_input
+
+    url = f"https://api.calorieninjas.com/v1/nutrition?query={translated_query}"
+    headers = {'X-Api-Key': NINJA_KEY}
+
     async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
+        async with session.get(url, headers=headers) as response:
             if response.status == 200:
                 data = await response.json()
-                products = data.get('products', [])
-                for product in products:
-                    name = product.get('product_name', 'Неизвестно')
-                    nutriments = product.get('nutriments', {})
-                    kcal = nutriments.get('energy-kcal_100g') or nutriments.get('energy-kcal')
-                    if kcal and float(kcal) > 0:
-                        return name, float(kcal)
-            return None, None
+                items = data.get('items', [])
+
+                if items:
+                    total_cals = 0
+                    total_grams = 0
+                    names = []
+
+                    for item in items:
+                        total_cals += item['calories']
+                        total_grams += item['serving_size_g']
+                        names.append(item['name'])
+
+                    product_name = ", ".join(names)
+
+                    if total_grams == 0: total_grams = 100
+
+                    kcal_per_100g = (total_cals / total_grams) * 100
+
+                    return product_name, kcal_per_100g, True
+
+            return None, None, None

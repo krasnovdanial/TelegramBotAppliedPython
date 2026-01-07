@@ -1,3 +1,5 @@
+import random
+
 from aiogram import Router, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -20,6 +22,7 @@ AVERAGE_WEIGHTS = {
     "помидор": 120,
     "кусок хлеба": 30,
     "стакан молока": 200,
+    "бургер": 237,
 }
 
 
@@ -53,7 +56,13 @@ async def cmd_log_food(message: types.Message, state: FSMContext):
 
     product_name = parts[1].lower()
 
-    name, kcal_100 = await get_food_info(product_name)
+    name, kcal_100, _ = await get_food_info(product_name)
+
+    if kcal_100:
+        await message.answer(
+            f"Продукт найден: **{name}**\n"
+            f"Калорийность: {int(kcal_100)} ккал."
+        )
 
     if not name:
         await message.answer(f"Не нашел '{product_name}'. Введите калорийность на 100г вручную:")
@@ -86,39 +95,80 @@ async def cmd_log_food(message: types.Message, state: FSMContext):
 @router.message(FoodLog.food_calories_per_100)
 async def manual_calories(message: types.Message, state: FSMContext):
     try:
-        kcal = float(message.text)
+        kcal = float(message.text.replace(',', '.'))
         await state.update_data(food_calories_per_100=kcal, unit_weight=None)
         await message.answer("Сколько грамм вы съели?")
         await state.set_state(FoodLog.grams)
+
     except ValueError:
-        await message.answer("Введите число (ккал).")
+        user_text = message.text
+        loading_msg = await message.answer(f"🔎 Ищу калорийность для «{user_text}»...")
+
+        product_name, kcal, _ = await get_food_info(user_text)
+
+        await loading_msg.delete()
+
+        if kcal:
+            await state.update_data(food_name=product_name, food_calories_per_100=kcal, unit_weight=None)
+            await message.answer(
+                f"Найдено: **{product_name}**\n"
+                f"Калорийность: {int(kcal)} ккал на 100г.\n\n"
+                f"Сколько грамм вы съели?",
+                parse_mode="Markdown"
+            )
+            await state.set_state(FoodLog.grams)
+        else:
+            await message.answer("Не удалось определить продукт. Введите число (ккал на 100г).")
 
 
 @router.message(FoodLog.grams)
 async def process_grams(message: types.Message, state: FSMContext):
     try:
-        input_value = float(message.text)
+        amount = float(message.text.replace(',', '.'))
+        if amount <= 0: raise ValueError
+
         data = await state.get_data()
 
+        kcal_100 = data.get('food_calories_per_100')
         unit_weight = data.get('unit_weight')
+        food_name = data.get('food_name', 'Продукт')
 
         if unit_weight:
-            grams = input_value * unit_weight
-            quantity_text = f"{int(input_value)} шт. ({int(grams)} г)"
+            grams = amount * unit_weight
+            quantity_text = f"{amount:g} шт. ({int(grams)} г)"
         else:
-            grams = input_value
+            grams = amount
             quantity_text = f"{int(grams)} г"
 
-        total_kcal = (data['food_calories_per_100'] * grams) / 100
+        total_kcal = (grams * kcal_100) / 100
 
-        await log_food(message.from_user.id, total_kcal)
+        await log_food(message.from_user.id, calories=total_kcal)
+        advice = ""
+        if total_kcal > 500:
+            workouts = [
+                "поприседать 20 раз",
+                "прогуляться 30 минут",
+                "сделать планку на 1 минуту",
+                "отказаться от лифта сегодня"
+            ]
+            random_workout = random.choice(workouts)
+            advice = (
+                f"/nЧтобы калории не ушли в жир, рекомендую {random_workout}!"
+            )
+        elif total_kcal > 300:
+            advice = "\nПлотный перекус. Не забудьте пить воду!"
 
-        food_name = data.get('food_name', 'Продукт')
-        await message.answer(f"{food_name}: {quantity_text} — {int(total_kcal)} ккал.")
+        await message.answer(
+            f"Добавлено: {food_name}\n"
+            f"Порция: {quantity_text}\n"
+            f"Итог: **+{int(total_kcal)} ккал"
+            f"{advice}",
+            parse_mode="Markdown"
+        )
         await state.clear()
 
     except ValueError:
-        await message.answer("Введите число.")
+        await message.answer("Пожалуйста, введите корректное число.")
 
 
 @router.message(Command("log_workout"))

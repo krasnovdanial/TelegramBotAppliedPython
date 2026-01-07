@@ -31,6 +31,7 @@ async def keep_alive():
 async def setup_bot_commands(bot: Bot):
     bot_commands = [
         BotCommand(command="/start", description="Запустить бота"),
+        BotCommand(command="/cancel", description="Отключить бота"),
         BotCommand(command="/set_profile", description="Настроить профиль"),
         BotCommand(command="/log_water", description="Записать воду"),
         BotCommand(command="/log_food", description="Записать еду"),
