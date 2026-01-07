@@ -11,7 +11,7 @@ NINJA_KEY = os.getenv('CALORIE_NINJA')
 
 async def get_weather_temp(city: str):
     if not WEATHER_KEY: return None
-    url = "http://api.openweathermap.org/data/2.5/weather"
+    url = "https://api.openweathermap.org/data/2.5/weather"
 
     params = {
         'q': city,
