@@ -25,6 +25,18 @@ AVERAGE_WEIGHTS = {
     "бургер": 237,
 }
 
+ACTIVITY_RATES = {
+    "бег": 10,
+    "ходьба": 5,
+    "велосипед": 8,
+    "плавание": 8,
+    "зал": 6,
+    "йога": 4,
+    "бокс": 12,
+    "уборка": 3
+}
+
+
 
 @router.message(Command("log_water"))
 async def cmd_log_water(message: types.Message, state: FSMContext):
@@ -60,7 +72,7 @@ async def cmd_log_food(message: types.Message, state: FSMContext):
 
     if kcal_100:
         await message.answer(
-            f"Продукт найден: **{name}**\n"
+            f"Продукт найден: {name}\n"
             f"Калорийность: {int(kcal_100)} ккал."
         )
 
@@ -102,7 +114,7 @@ async def manual_calories(message: types.Message, state: FSMContext):
 
     except ValueError:
         user_text = message.text
-        loading_msg = await message.answer(f"🔎 Ищу калорийность для «{user_text}»...")
+        loading_msg = await message.answer(f"Ищу калорийность для {user_text}...")
 
         product_name, kcal, _ = await get_food_info(user_text)
 
@@ -111,10 +123,9 @@ async def manual_calories(message: types.Message, state: FSMContext):
         if kcal:
             await state.update_data(food_name=product_name, food_calories_per_100=kcal, unit_weight=None)
             await message.answer(
-                f"Найдено: **{product_name}**\n"
+                f"Найдено: {product_name}\n"
                 f"Калорийность: {int(kcal)} ккал на 100г.\n\n"
                 f"Сколько грамм вы съели?",
-                parse_mode="Markdown"
             )
             await state.set_state(FoodLog.grams)
         else:
@@ -161,9 +172,8 @@ async def process_grams(message: types.Message, state: FSMContext):
         await message.answer(
             f"Добавлено: {food_name}\n"
             f"Порция: {quantity_text}\n"
-            f"Итог: **+{int(total_kcal)} ккал"
+            f"Итог: +{int(total_kcal)} ккал"
             f"{advice}",
-            parse_mode="Markdown"
         )
         await state.clear()
 
@@ -175,18 +185,40 @@ async def process_grams(message: types.Message, state: FSMContext):
 async def cmd_log_workout(message: types.Message, state: FSMContext):
     await state.clear()
     user = await get_user(message.from_user.id)
-    if not user: return await message.answer("Такого пользователя пока нет. Сначала настройте профиль: /set_profile")
+    if not user:
+        return await message.answer("Сначала настройте профиль: /set_profile")
 
     parts = message.text.split()
-    if len(parts) < 3: return await message.answer("Пример: /log_workout бег 30")
+    if len(parts) < 3:
+        return await message.answer(
+            "Пример ввода: /log_workout бег 30\n\n"
+            "Доступные виды: бег, ходьба, велосипед, плавание, зал, йога, бокс."
+        )
+
+    workout_type = parts[1].lower()
 
     try:
-        w_type = parts[1]
         minutes = int(parts[2])
-        burned = minutes * 10
+        if minutes <= 0: raise ValueError
+
+        kcal_per_min = ACTIVITY_RATES.get(workout_type, 7)
+
+        note = ""
+        if workout_type not in ACTIVITY_RATES:
+            note = f"\n(Такой активности нет в базе, посчитал по среднему: 7 ккал/мин)"
+
+        burned = minutes * kcal_per_min
+
         water_bonus = (minutes // 30) * 200
 
-        await log_workout(message.from_user.id, burned, water_bonus)
-        await message.answer(f"{w_type} {minutes} мин: {burned} ккал.\n Доп. вода: {water_bonus} мл.")
+        await log_workout(message.from_user.id, burned_kcal=burned, water_needed=water_bonus)
+
+        await message.answer(
+            f"Тренировка: {workout_type.capitalize()}\n"
+            f"Время: {minutes} мин\n"
+            f"Сожжено: {int(burned)} ккал{note}\n"
+            f"Доп. вода: +{water_bonus} мл",
+        )
+
     except ValueError:
-        await message.answer("Время должно быть числом.")
+        await message.answer("Время должно быть числом (минуты).")
