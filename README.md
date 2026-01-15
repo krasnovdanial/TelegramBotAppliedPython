@@ -43,5 +43,4 @@
     ```bash
     uv run main.py
     ```
-
-    @Fit_Traker_Bot - сам бот
+5. Fit_Traker_Bot - сам бот
