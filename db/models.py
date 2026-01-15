@@ -16,6 +16,7 @@ class User(Base):
     weight: Mapped[float] = mapped_column(Float)
     height: Mapped[float] = mapped_column(Float)
     age: Mapped[int] = mapped_column(Integer)
+    gender: Mapped[str] = mapped_column(String)
     activity: Mapped[int] = mapped_column(Integer)
     city: Mapped[str] = mapped_column(String)
 
