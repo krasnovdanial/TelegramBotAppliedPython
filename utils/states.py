@@ -6,6 +6,7 @@ class ProfileSetup(StatesGroup):
     weight = State()
     height = State()
     age = State()
+    gender = State()
     activity = State()
     city = State()
 
